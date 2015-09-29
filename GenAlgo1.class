@@ -1,0 +1,329 @@
+/**
+ * Created by mattgmitro on 9/28/15.
+ */
+
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+class chromo_typ {
+    String bits;
+    float fitness;
+
+    public chromo_typ() {
+        bits = "";
+        fitness = 0.0f;
+    }
+
+    public chromo_typ(String bts, float ftns) {
+        bits = bts;
+        fitness = ftns;
+    }
+}
+
+public class GenAlgo1 {
+    static final double CROSSOVER_RATE = 0.7;
+    static final double MUTATION_RATE = .001;
+    static final int POP_SIZE = 6;
+    static final int CHROMO_LENGTH = 24;
+    static final int GENE_LENGTH = 4;
+    static final int MAX_ALLOWABLE_GENERATIONS = 400;
+
+
+
+    //Returns a string of 1s and 0s with desired length
+    static String GetRandomBits(int length) {
+        String bits = "";
+        Random flt = new Random();
+        float rndm = flt.nextFloat();
+        for (int i = 0; i < length; i++) {
+            if (rndm > .5) {
+                bits += "1";
+            } else {
+                bits += "0";
+            }
+            rndm = flt.nextFloat();
+        }
+        return bits;
+    }
+
+    //Converts binary string into decimal integer
+    static int BinToDec(String bits) {
+        int val = 0;
+        int addvalue = 1;
+
+        for (int i = bits.length(); i > 0; i--) {
+            if (bits.charAt(i - 1) == '1') {
+                val += addvalue;
+                addvalue *= 2;
+            }
+        }
+
+        return val;
+    }
+
+    //Parses chromosome bits into decimal values of each gene
+    static int ParseBits(String bits, int[] buffer) {
+
+        //Buffer position counter
+        int cBuff = 0;
+
+        //Checks if we're looking at an operator
+        boolean opcheck = true;
+
+        //Value to store gene's decimal value
+        int this_gene = 0;
+
+        for (int i = 0; i < CHROMO_LENGTH; i += GENE_LENGTH) {
+            this_gene = BinToDec(bits.substring(i, i + GENE_LENGTH));
+
+            if (opcheck) {
+                if ((this_gene < 10) || (this_gene > 13)) {
+                    continue;
+                } else {
+                    opcheck = false;
+                    buffer[cBuff] = this_gene;
+                    cBuff++;
+                    continue;
+                }
+            } else {
+                if (this_gene > 9) {
+                    continue;
+                } else {
+                    opcheck = true;
+                    buffer[cBuff] = this_gene;
+                    cBuff++;
+                    continue;
+                }
+            }
+        }
+
+        //Check to make sure there is no divide by zero
+        for (int i = 0; i < cBuff; i++) {
+            if ((buffer[i] == 13) && (buffer[i + 1] == 0)) {
+                buffer[i] = 10;
+            }
+        }
+        return cBuff;
+    }
+
+    //Give a string of bits and the target value, calculates and returns a fitness value for the sequence
+    static float AssignFitness(String bits, float target) {
+        //hold decimal values of gene sequence
+        int buffer[] = new int[(int) (CHROMO_LENGTH / GENE_LENGTH)];
+
+        int num_elements = ParseBits(bits, buffer);
+
+        //Buffer is filled with values now
+        float result = 0.0f;
+
+        for (int i = 0; i < num_elements - 1; i += 2) {
+            switch (buffer[i]) {
+                case 10:
+                    result += buffer[i + 1];
+                    break;
+                case 11:
+                    result -= buffer[i + 1];
+                    break;
+                case 12:
+                    result *= buffer[i + 1];
+                    break;
+                case 13:
+                    result /= buffer[i + 1];
+                    break;
+            }
+        }
+
+        //Calculate fitness, but first check to see if solution is correct
+        if (result == (float)target) {
+            return 999.0f;
+        } else {
+            return 1 / (float) Math.abs((double) (target - result));
+        }
+    }
+
+    //Prints the decoded chromosome
+    static void PrintChromo(String bits) {
+        //Array to hold the decimal values of the sequence
+        int[] buffer = new int[(int) (CHROMO_LENGTH / GENE_LENGTH)];
+
+        int num_elements = ParseBits(bits, buffer);
+
+        for (int i = 0; i < num_elements; i++) {
+            PrintGeneSymbol(buffer[i]);
+        }
+    }
+
+    //Given an integer, prints the correlated symbol
+    static void PrintGeneSymbol(int val) {
+        if (val < 10) {
+            System.out.print(val + " ");
+        } else {
+            switch (val) {
+                case 10:
+                    System.out.print("+");
+                    break;
+                case 11:
+                    System.out.print("-");
+                    break;
+                case 12:
+                    System.out.print("*");
+                    break;
+                case 13:
+                    System.out.print("/");
+                    break;
+            }
+            System.out.print(" ");
+        }
+    }
+
+    //Mutates a chromosome's bits dependent on MUTATION_RATE
+    static void Mutate(String bits) {
+        StringBuilder mbits = new StringBuilder(bits);
+        Random flt = new Random();
+        float rndm = flt.nextFloat();
+
+        for (int i = 0; i < bits.length(); i++) {
+            if (rndm < MUTATION_RATE) {
+                if (bits.charAt(i) == '1') {
+                    mbits.setCharAt(i, '0');
+                } else {
+                    mbits.setCharAt(i, '1');
+                }
+            }
+        }
+
+        bits = mbits.toString();
+    }
+
+    //Dependent on CROSSOVER_RATE, selects a point along the chromosome and swaps all the bits after that point
+    static void Crossover(String offspring1, String offspring2) {
+        Random flt = new Random();
+        float rndm = flt.nextFloat();
+        if (rndm < CROSSOVER_RATE) {
+            //create crossover point
+            int crossover = (int) (rndm * CHROMO_LENGTH);
+
+            String t1 = offspring1.substring(0, crossover) + offspring2.substring(crossover, CHROMO_LENGTH);
+            String t2 = offspring2.substring(0, crossover) + offspring1.substring(crossover, CHROMO_LENGTH);
+
+            offspring1 = t1;
+            offspring2 = t2;
+        }
+    }
+
+    //Selects a chromosome from the population using roulette wheel selection
+    static String Roulette(float total_fitness, chromo_typ[] Population) {
+        Random flt = new Random();
+        float rndm = flt.nextFloat();
+        float Slice = (float)(rndm * total_fitness);
+
+        //Add chromosomes' fitness
+        float FitnessSoFar = 0.0f;
+
+        for (int i = 0; i < POP_SIZE; i++) {
+            FitnessSoFar += Population[i].fitness;
+
+            //if the fitness so far is greater than random number return chromosome
+            if (FitnessSoFar >= Slice) {
+                return Population[i].bits;
+            }
+        }
+
+        return "";
+    }
+
+    public static void main(String[] args) {
+        while (true) {
+            //Storage for the chromosome population
+            chromo_typ Population[] = new chromo_typ[POP_SIZE];
+
+            //get the target number
+            float target;
+            System.out.print("Input a target number: ");
+            Scanner targscan = new Scanner(System.in);
+            target = targscan.nextFloat();
+
+
+            //create a random population, all with zero fitness
+            for (int i = 0; i < POP_SIZE; i++) {
+                Population[i] = new chromo_typ(GetRandomBits(CHROMO_LENGTH), 0.0f);
+                Population[i].bits = GetRandomBits(CHROMO_LENGTH);
+                Population[i].fitness = 0;
+            }
+
+
+            int GenToASolution = 0;
+
+            //flag to test whether solution is found
+            boolean bFound = false;
+
+            //main genetic algo loop
+            while (!bFound) {
+                //used for roulette wheel
+                float TotalFitness = 0.0f;
+
+                //test and update every chromosome
+                for (int i = 0; i < POP_SIZE; i++) {
+                    Population[i].fitness = AssignFitness(Population[i].bits, target);
+                    TotalFitness += Population[i].fitness;
+
+                }
+
+
+                //check for solutions
+                for (int i = 0; i < POP_SIZE; i++) {
+                    if (Population[i].fitness == 999.0f) {
+                        System.out.println("Solution found in " + GenToASolution + " generations!");
+                        PrintChromo(Population[i].bits);
+                        bFound = true;
+                        break;
+                    }
+                }
+
+                //Create new population by selecting two parents and creating offspring by applying crossover and mutation
+
+                //Define some temporary storage for the new population
+                chromo_typ[] temp = new chromo_typ[POP_SIZE];
+                for (int i = 0; i < POP_SIZE; i++) {
+                    temp[i] = new chromo_typ();
+                }
+
+                int cPop = 0;
+
+                //loop until we have the number of chromosomes equal to POP_SIZE
+                while (cPop < POP_SIZE) {
+                    //we will use the roulette wheel selection to grab members of the old population
+                    String offspring1 = Roulette(TotalFitness, Population);
+                    String offspring2 = Roulette(TotalFitness, Population);
+
+                    //add crossover
+                    Crossover(offspring1, offspring2);
+                    //Mutate
+                    Mutate(offspring1);
+                    Mutate(offspring2);
+
+                    //add the offspring to the new population with zero fitness
+                    temp[cPop] = new chromo_typ(offspring1, 0.0f);
+                    temp[cPop++] = new chromo_typ(offspring2, 0.0f);
+                    cPop++;
+                }
+
+                //copy temp pop into main pop
+                for (int i = 0; i < POP_SIZE; i++) {
+                    Population[i].fitness = temp[i].fitness;
+                    Population[i].bits = temp[i].bits;
+                }
+
+                ++GenToASolution;
+
+                if (GenToASolution > MAX_ALLOWABLE_GENERATIONS) {
+                    System.out.println("No solutions found this run!");
+                    bFound = true;
+                }
+
+            }
+        }
+    }
+
+}
