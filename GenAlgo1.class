@@ -10,12 +10,12 @@ class chromo_typ {
     String bits;
     float fitness;
 
-    public chromo_typ() {
+    chromo_typ() {
         bits = "";
         fitness = 0.0f;
     }
 
-    public chromo_typ(String bts, float ftns) {
+    chromo_typ(String bts, float ftns) {
         bits = bts;
         fitness = ftns;
     }
